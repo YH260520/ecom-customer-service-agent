@@ -5,35 +5,23 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, RemoveMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.store.base import BaseStore
+from qdrant_client import QdrantClient
+from dashscope import TextEmbedding
 
-from agent.skills import SKILL_INDEX_PROMPT
+from agent.skills import build_skill_prompt, filter_skills_by_agent, ALL_SKILLS
+from mcp_client.client import MCPClientManager
+from tools.tool_manager import TOOL_MGR
 from prompt import *
 from agent.state import *
-from tools import *
+from agent.utils import *
+
 
 import os
 
 MAX_MESSAGE_LENGTH = 10
 KEEP_RECENT_LENGTH = 3
 
-
-
 # 定义节点
-def format_profile(profile: UserProfile) -> str:
-    """把结构化画像渲染成一段自然语言文本,方便直接拼进 System Prompt"""
-    parts = []
-    if profile.id:
-        parts.append(f"身份:{profile.identity}")
-    if profile.preferences:
-        parts.append(f"偏好:{', '.join(profile.preferences)}")
-    if profile.emotional_tendency:
-        parts.append(f"情绪倾向:{profile.emotional_tendency}")
-    if profile.interested_products:
-        parts.append(f"关注商品:{', '.join(profile.interested_products)}")
-    if profile.summary:
-        parts.append(f"综合摘要:{profile.summary}")
-    return " | ".join(parts) if parts else ""
-
 async def load_memory(
     state: GraphState,
     config: RunnableConfig,
@@ -95,6 +83,27 @@ def summarizer(state: GraphState):
     }
 
 def router(state: GraphState):
+    # 使用级联系统进行路由识别
+    # 第一层：密集向量余弦相似度，相似度>0.9进入下一层
+    dense_embedding_model = "qwen3.7-text-embedding"
+    embedding_dim = 1024
+    collection_name = "router_template"
+    client = QdrantClient(url=os.getenv("QDRANT_CLOUD_CLUSTER_URL"),
+                          api_key=os.getenv("QDRANT_CLOUD_CLUSTER_API_KEY"),
+                          cloud_inference=True)
+    query_embedding_result = TextEmbedding.call(api_key=os.getenv("DASHSCOPE_API_KEY"),
+                                                model=dense_embedding_model,
+                                                input=state["messages"][-1].content,
+                                                distance=embedding_dim)
+    dense_query_vector = query_embedding_result.output["embeddings"][0]["embedding"]
+    search_result = client.query_points(
+        collection_name=collection_name,
+        query=dense_query_vector,
+        limit=1
+    )
+    if search_result.points[0].score > 0.85:
+        return {"customer_intent": search_result.payload["intent"]}
+
     # 创建LLM实例
     llm = ChatOpenAI(
         model="qwen-max",
@@ -117,14 +126,15 @@ def router(state: GraphState):
 
 async def presale_assistant(state: GraphState):
     # 创建LLM实例并绑定工具
+    presale_tools = TOOL_MGR.get_filted_tools("presale")
     llm = ChatOpenAI(
         model="qwen3.7-max",
         base_url=os.getenv("DASHSCOPE_BASE_URL"),
         api_key=os.getenv("DASHSCOPE_API_KEY"),
-    ).bind_tools(PRESALE_TOOLS)
+    ).bind_tools(presale_tools)
 
     # 拼接提示词：客服角色+技能+（长期记忆）+（历史对话摘要）+近期对话
-    system_message = PRESALE_PROMPT + SKILL_INDEX_PROMPT
+    system_message = PRESALE_PROMPT + build_skill_prompt(filter_skills_by_agent(ALL_SKILLS, "presale"))
     user_memory = state.get("user_memory", "")
     if user_memory:
         system_message += f"""
@@ -147,14 +157,15 @@ async def presale_assistant(state: GraphState):
 
 async def aftersale_assistant(state: GraphState):
     # 创建LLM实例并绑定工具
+    aftersale_tools = TOOL_MGR.get_filted_tools("aftersale")
     llm = ChatOpenAI(
         model="qwen3.7-max",
         base_url=os.getenv("DASHSCOPE_BASE_URL"),
         api_key=os.getenv("DASHSCOPE_API_KEY"),
-    ).bind_tools(AFTERSALE_TOOLS)
+    ).bind_tools(aftersale_tools)
 
     # 拼接提示词：客服角色+技能+（长期记忆）+（历史对话摘要）+近期对话
-    system_message = AFTERSALE_PROMPT + SKILL_INDEX_PROMPT
+    system_message = AFTERSALE_PROMPT + build_skill_prompt(filter_skills_by_agent(ALL_SKILLS, "aftersale"))
     user_memory = state.get("user_memory", "")
     if user_memory:
         system_message += f"""
@@ -178,14 +189,47 @@ async def aftersale_assistant(state: GraphState):
 
 async def complaint_assistant(state: GraphState):
     # 创建LLM实例并绑定工具
+    complaint_tools = TOOL_MGR.get_filted_tools("complaint")
     llm = ChatOpenAI(
         model="qwen3.7-max",
         base_url=os.getenv("DASHSCOPE_BASE_URL"),
         api_key=os.getenv("DASHSCOPE_API_KEY"),
-    ).bind_tools(COMPLAINT_TOOLS)
+    ).bind_tools(complaint_tools)
 
     # 拼接提示词：客服角色+技能+（长期记忆）+（历史对话摘要）+近期对话
-    system_message = COMPLAINT_PROMPT + SKILL_INDEX_PROMPT
+    system_message = COMPLAINT_PROMPT + build_skill_prompt(filter_skills_by_agent(ALL_SKILLS, "complaint"))
+    user_memory = state.get("user_memory", "")
+    if user_memory:
+        system_message += f"""
+
+            ## 历史画像
+            该客户历史画像如下：
+                {user_memory}
+            请结合以上客户信息调整你的语气和回复策略"""
+
+    summary = state.get("summary", "")
+    if summary:
+        system_message += f"""
+
+            ## 对话摘要
+            以下是此前对话的摘要：{state['summary']}"""
+
+    messages = [SystemMessage(system_message), *state["messages"]]
+
+    llm_output = llm.invoke(messages)
+    return {"messages": llm_output}
+
+async def general_assistant(state: GraphState):
+    # 创建LLM实例并绑定工具
+    general_tools = TOOL_MGR.get_filted_tools("general")
+    llm = ChatOpenAI(
+        model="qwen3.7-max",
+        base_url=os.getenv("DASHSCOPE_BASE_URL"),
+        api_key=os.getenv("DASHSCOPE_API_KEY"),
+    ).bind_tools(general_tools)
+
+    # 拼接提示词：客服角色+（长期记忆）+（历史对话摘要）+近期对话
+    system_message = GENERAL_PROMPT
     user_memory = state.get("user_memory", "")
     if user_memory:
         system_message += f"""

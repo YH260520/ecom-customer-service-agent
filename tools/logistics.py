@@ -1,7 +1,7 @@
 from tools.mock_data import LOGISTICS, ORDERS
+from langchain_core.tools import tool
 
-
-def query_logistics(order_id: str) -> dict:
+def _query_logistics(order_id: str) -> dict:
     """根据订单号查询物流轨迹信息。"""
     order = ORDERS.get(order_id)
     if not order:
@@ -16,3 +16,8 @@ def query_logistics(order_id: str) -> dict:
         return {"success": False, "error": f"物流单号 {tracking_number} 暂无轨迹信息"}
 
     return {"success": True, "logistics": logistics}
+
+@tool
+def query_logistics(order_id: str) -> dict:
+    """根据订单号查询物流轨迹信息。"""
+    return query_logistics(order_id)

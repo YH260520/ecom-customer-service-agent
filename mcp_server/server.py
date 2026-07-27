@@ -6,11 +6,13 @@
 
 import json
 from mcp.server.fastmcp import FastMCP
-from mcp_server.order import query_order as _query_order
-from mcp_server.product import query_product as _query_product
-from mcp_server.logistics import query_logistics as _query_logistics
-from mcp_server.refund import apply_refund as _apply_refund
-from mcp_server.knowledge import search_knowledge as _search_knowledge
+from tools.order import _query_order, _modify_order
+from tools.product import _query_product
+from tools.logistics import _query_logistics
+from tools.refund import _apply_refund
+from tools.knowledge import _search_knowledge
+from tools.transfer_human import _transfer_human
+from tools.load_skill import _load_skill
 
 mcp = FastMCP("ecommerce", host="127.0.0.1", port=9123)
 
@@ -19,6 +21,13 @@ mcp = FastMCP("ecommerce", host="127.0.0.1", port=9123)
 def query_order(order_id: str) -> str:
     """根据订单号查询订单详情，包括订单状态、商品信息、金额、物流单号等"""
     result = _query_order(order_id)
+    return json.dumps(result, ensure_ascii=False)
+
+
+@mcp.tool()
+def modify_order(order_id: str) -> str:
+    """根据订单号修改收件人姓名、电话、地址。"""
+    result = _modify_order(order_id)
     return json.dumps(result, ensure_ascii=False)
 
 
@@ -42,6 +51,7 @@ def apply_refund(order_id: str, reason: str) -> str:
     result = _apply_refund(order_id, reason)
     return json.dumps(result, ensure_ascii=False)
 
+
 @mcp.tool()
 def search_knowledge(query: str, top_k: int = 3) -> str:
     """检索京东的政策与帮助文档。
@@ -50,6 +60,24 @@ def search_knowledge(query: str, top_k: int = 3) -> str:
     """
     result = _search_knowledge(query, top_k=top_k)
     return json.dumps(result, ensure_ascii=False)
+
+
+@mcp.tool()
+def transfer_human() -> str:
+    """转人工处理"""
+    result = _transfer_human()
+    return json.dumps(result, ensure_ascii=False)
+
+
+@mcp.tool()
+def load_skill(skill_name: str) -> str:
+    """
+        当判断某个技能（如退款流程）与当前用户请求相关时，调用此工具加载该技能的完整操作指南。
+        参数 skill_name 必须是系统提示词中列出的技能名称之一。
+    """
+    result = _load_skill(skill_name)
+    return json.dumps(result, ensure_ascii=False)
+
 
 if __name__ == "__main__":
     mcp.run(transport="streamable-http")

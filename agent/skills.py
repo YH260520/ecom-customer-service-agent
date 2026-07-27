@@ -18,14 +18,16 @@ def load_all_skills(skills_dir: str = SKILLS_DIR) -> dict[str, dict]:
         }
     return skills
 
+def filter_skills_by_agent(skills: dict, agent_name: str) -> dict:
+    return {k: v for k, v in skills.items() if v.get("agent") == agent_name}
+
 def build_skill_prompt(skills: dict) -> str:
     if not skills:
         return ""
-    lines = ["\n\n##可用技能列表（如与当前用户请求相关，调用 load_skill 工具加载完整操作指南）:"]
+    lines = ["\n\n## 可用技能列表（如与当前用户请求相关，调用 load_skill 工具加载完整操作指南）:"]
     for name, meta in skills.items():
         lines.append(f"- {name}: {meta['description']}")
     return "\n".join(lines)
 
 # 加载skill
 ALL_SKILLS = load_all_skills()
-SKILL_INDEX_PROMPT = build_skill_prompt(ALL_SKILLS)

@@ -1,7 +1,7 @@
 from tools.mock_data import PRODUCTS
+from langchain_core.tools import tool
 
-
-def query_product(keyword: str) -> dict:
+def _query_product(keyword: str) -> dict:
     """根据商品名称关键词或商品ID查询商品信息，包括价格、库存、规格等。"""
     if keyword in PRODUCTS:
         return {"success": True, "products": [PRODUCTS[keyword]]}
@@ -14,3 +14,8 @@ def query_product(keyword: str) -> dict:
     if not results:
         return {"success": False, "error": f"未找到与「{keyword}」相关的商品"}
     return {"success": True, "products": results}
+
+@tool
+def query_product(keyword: str) -> dict:
+    """根据商品名称关键词或商品ID查询商品信息，包括价格、库存、规格等。"""
+    return _query_product(keyword)

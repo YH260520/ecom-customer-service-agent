@@ -1,7 +1,7 @@
 from tools.mock_data import ORDERS
+from langchain_core.tools import tool
 
-
-def apply_refund(order_id: str, reason: str) -> dict:
+def _apply_refund(order_id: str, reason: str) -> dict:
     """为指定订单申请退款，需提供退款原因。"""
     order = ORDERS.get(order_id)
     if not order:
@@ -26,3 +26,8 @@ def apply_refund(order_id: str, reason: str) -> dict:
             f"预计 1-3 个工作日内审核完成，届时会通知您退货地址。"
         ),
     }
+
+@tool
+def apply_refund(order_id: str, reason: str) -> dict:
+    """为指定订单申请退款，需提供退款原因。"""
+    return _apply_refund(order_id, reason)

@@ -3,13 +3,14 @@ from langgraph.graph import MessagesState
 from pydantic import BaseModel, Field
 
 class IntentClassification(BaseModel):
-    """用户诉求分类结果,供路由节点强制约束 LLM 输出格式"""
-    intent: Literal["presale", "aftersale", "complaint"] = Field(
+    """用户消息分类结果,供路由节点强制约束 LLM 输出格式"""
+    intent: Literal["presale", "aftersale", "complaint", "general"] = Field(
         description=(
-            "用户诉求所属类别:\n"
+            "用户消息所属类别:\n"
             "- presale:商品咨询、价格、促销活动、库存等购买前问题\n"
             "- aftersale:订单查询、物流、退换货、退款等购买后问题\n"
-            "- complaint:客户表达不满、投诉、要求赔偿、情绪激烈的反馈"
+            "- complaint:客户表达不满、投诉、要求赔偿、情绪激烈的反馈\n"
+            "- general:客户日常交流、闲聊等非诉求类型的消息或者需要进一步澄清客户意图时\n"
         )
     )
     confidence: float = Field(description="分类置信度,0到1之间")

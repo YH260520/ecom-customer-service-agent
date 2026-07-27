@@ -3,8 +3,10 @@ import asyncio
 import selectors
 
 from langchain_core.messages import HumanMessage
+from langgraph.checkpoint.memory import InMemorySaver
+
 from agent.graph import *
-from mcp_client.client import MCPClientManager
+
 from langgraph.store.postgres import AsyncPostgresStore
 
 
@@ -31,11 +33,7 @@ async def run_agent(store):
 
 async def main():
     db_uri = build_db_uri()
-
-    async with (
-        mcp_manager,
-        AsyncPostgresStore.from_conn_string(db_uri) as store,
-    ):
+    async with AsyncPostgresStore.from_conn_string(db_uri) as store:
         await store.setup()
         await run_agent(store)
 
