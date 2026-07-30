@@ -28,7 +28,7 @@ def create_tools_node_with_hitl(tools: list):
         tools: 该 Graph 使用的工具列表
     """
     tool_executor = ToolNode(tools)
-    sensitive_set = {"apply_refund"}
+    sensitive_set = {"exec_refund"}
 
     async def tools_node_with_hitl(state: GraphState):
         last_message = state["messages"][-1]

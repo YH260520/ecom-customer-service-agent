@@ -96,3 +96,25 @@ def _modify_logistics(
     else:
         return {"success": True, "msg": f"成功更新{row_cnt}条物流记录", "row_count": row_cnt}
 
+@tool
+def modify_logistics(
+    tracking_number: str,
+    recipient: Optional[str] = None,
+    phone_number: Optional[str] = None,
+    destination: Optional[str] = None
+) -> dict:
+    """根据物流单号修改物流信息，仅更新传入不为None的字段。
+
+    Args:
+        tracking_number: 物流单号【必填】
+        recipient: 收件人名称，不传则不更新
+        phone_number: 收件手机号，不传则不更新
+        destination: 收货地址，不传则不更新
+
+    Returns:
+        {
+            "success": 修改是否成功
+            "message": 结果消息，如果成功，为更新成功描述；如果失败，为失败原因描述
+        }
+    """
+    return _modify_logistics(tracking_number, recipient, phone_number, destination)
