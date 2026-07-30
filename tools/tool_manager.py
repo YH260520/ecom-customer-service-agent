@@ -1,20 +1,21 @@
 import asyncio
 
 from mcp_client.client import MCPClientManager
-from tools.logistics import query_logistics
-from tools.order import query_order, modify_order
+from tools.logistics import query_logistics, modify_logistics
+from tools.order import query_order, list_user_orders
 from tools.product import query_product
-from tools.refund import apply_refund
+from tools.refund import exec_refund
 from tools.load_skill import load_skill
 from tools.transfer_human import transfer_human
 from tools.knowledge import search_knowledge
 
 fallback_tool_list = [
     query_logistics,
+    modify_logistics,
     query_order,
-    modify_order,
+    list_user_orders,
     query_product,
-    apply_refund,
+    exec_refund,
     load_skill,
     transfer_human,
     search_knowledge
@@ -42,7 +43,7 @@ class ToolManager:
         # 定义不同子智能体的工具过滤列表
         self.tool_filter = {
             "presale": ["query_product", "search_knowledge", "load_skill"],
-            "aftersale": ["query_logistics", "query_order", "modify_order", "apply_refund", "search_knowledge", "load_skill"],
+            "aftersale": ["query_logistics", "modify_logistics", "query_order", "apply_refund", "search_knowledge", "load_skill"],
             "complaint": ["query_logistics", "query_order", "apply_refund", "search_knowledge", "load_skill", "transfer_human"],
             "general": ["search_knowledge", "transfer_human"],
         }

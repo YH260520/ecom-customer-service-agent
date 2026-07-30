@@ -9,19 +9,25 @@ import os
 from qdrant_client import QdrantClient, models
 from dashscope import TextEmbedding
 from langchain_core.tools import tool
+from typing import Literal
 
-
-def _search_knowledge(query: str, top_k: int = 3) -> dict:
-    """检索退换货政策、配送说明、会员权益、FAQ 等知识库内容。
+def _search_knowledge(membership: Literal["none", "plus"], query: str, top_k: int = 3) -> dict:
+    """检索京东的政策与帮助文档。
+       当顾客询问规则、流程、时效、是否支持等政策类问题时使用。
        返回值是字典，包含查询字符串，结果列表，每条结果包含知识库文档内容和相关性分数。
+       请基于检索结果回答，不要编造政策。
+
+    Args:
+        query: 查询的文本块
+        top_k: 返回的最相关文本块数量
 
     Returns:
         {
-          "query": str,
+          "query": 查询的文本块,
           "results": [
                 {
-                    "text": str
-                    "score": float
+                    "text": 结果文本块
+                    "score": 相关性分数
                 }, ...
           ]
         }
@@ -38,6 +44,19 @@ def _search_knowledge(query: str, top_k: int = 3) -> dict:
                                                 input=query,
                                                 distance=embedding_dim)
     dense_query_vector = query_embedding_result.output["embeddings"][0]["embedding"]
+    # 根据会员等级初始化查询过滤器
+    if membership == "plus":
+        query_filter = None  # plus会员可以查看全部知识库
+    else:
+        query_filter = models.Filter(
+            must=[
+                models.FieldCondition(
+                    key="permission_level",
+                    match=models.MatchValue(value="public")
+                )
+            ]
+        )
+
     # 在 Qdrant 中搜索与查询向量最相似的向量
     search_results = client.query_points(
         collection_name=collection_name,
@@ -57,6 +76,7 @@ def _search_knowledge(query: str, top_k: int = 3) -> dict:
             )
         ],
         query=models.FusionQuery(fusion=models.Fusion.RRF),
+        query_filter=query_filter,
         limit=top_k
     )
 
@@ -72,16 +92,22 @@ def _search_knowledge(query: str, top_k: int = 3) -> dict:
 
 @tool
 def search_knowledge(query: str, top_k: int = 3) -> dict:
-    """检索退换货政策、配送说明、会员权益、FAQ 等知识库内容。
+    """检索京东的政策与帮助文档。
+       当顾客询问规则、流程、时效、是否支持等政策类问题时使用。
        返回值是字典，包含查询字符串，结果列表，每条结果包含知识库文档内容和相关性分数。
+       请基于检索结果回答，不要编造政策。
+
+    Args:
+        query: 查询的文本块
+        top_k: 返回的最相关文本块数量
 
     Returns:
         {
-          "query": str,
+          "query": 查询的文本块,
           "results": [
                 {
-                    "text": str
-                    "score": float
+                    "text": 结果文本块
+                    "score": 相关性分数
                 }, ...
           ]
         }
