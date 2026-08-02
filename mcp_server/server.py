@@ -112,7 +112,7 @@ def modify_logistics(
     return json.dumps(result, ensure_ascii=False)
 
 @mcp.tool()
-def exec_refund(order_id: str, reason: str) -> str:
+def exec_refund(order_id: str) -> str:
     """为指定订单申请退款。
 
     Args:
@@ -124,7 +124,7 @@ def exec_refund(order_id: str, reason: str) -> str:
             "message": 退款结果消息
         }
     """
-    result = _exec_refund(order_id, reason)
+    result = _exec_refund(order_id)
     return json.dumps(result, ensure_ascii=False)
 
 

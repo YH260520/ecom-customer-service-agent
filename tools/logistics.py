@@ -40,7 +40,7 @@ def query_logistics(tracking_number: str) -> dict:
             "message": 结果消息，如果成功，为快递单详细信息；如果失败，为失败原因描述
         }
     """
-    return query_logistics(tracking_number)
+    return _query_logistics(tracking_number)
 
 
 def _modify_logistics(
@@ -77,7 +77,11 @@ def _modify_logistics(
         update_parts.append("destination = %s")
         params.append(destination)
 
-    # 拼接SQL
+    # 防护：如果没有任何字段需要更新，直接返回，避免生成无效 SQL
+    if not update_parts:
+        return {"success": False, "msg": "未提供需要更新的字段", "row_count": 0}
+
+    # 拼接SQL（字段名是代码内硬编码的白名单，非用户输入，不存在注入风险）
     set_clause = ", ".join(update_parts)
     sql = f"""
         UPDATE public.logistics

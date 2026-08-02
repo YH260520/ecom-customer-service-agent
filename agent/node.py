@@ -54,7 +54,7 @@ def summarizer(state: GraphState):
     # 把待压缩的历史消息拼成文本，交给 LLM 生成摘要
     history_message = ""
     if summary:
-        history_message += "此前摘要：{summary}"
+        history_message += f"<conversation_summary>{summary}</conversation_summary>"
     for m in to_summarize:
         if m.type == "human":
             history_message += f"\n用户：{m.content}"
@@ -84,7 +84,7 @@ def summarizer(state: GraphState):
 
 def router(state: GraphState):
     # 使用级联系统进行路由识别
-    # 第一层：密集向量余弦相似度，相似度>0.9进入下一层
+    # 第一层：密集向量余弦相似度，相似度>0.85进入下一层
     dense_embedding_model = "qwen3.7-text-embedding"
     embedding_dim = 1024
     collection_name = "router_template"
@@ -102,7 +102,7 @@ def router(state: GraphState):
         limit=1
     )
     if search_result.points[0].score > 0.85:
-        return {"customer_intent": search_result.payload["intent"]}
+        return {"customer_intent": search_result.points[0].payload["intent"]}
 
     # 创建LLM实例
     llm = ChatOpenAI(
@@ -113,12 +113,7 @@ def router(state: GraphState):
 
     # 拼接提示词：客服角色+（历史对话摘要）+近期对话
     system_message = ROUTER_PROMPT
-    summary = state.get("summary", "")
-    if summary:
-        system_message += f"""
-
-            ## 对话摘要
-            以下是此前对话的摘要：{state['summary']}"""
+    system_message += format_safe_summary(state.get("summary", ""))
 
     messages = [SystemMessage(system_message), *state["messages"]]
     llm_output = llm.invoke(messages)
@@ -135,21 +130,8 @@ async def presale_assistant(state: GraphState):
 
     # 拼接提示词：客服角色+技能+（长期记忆）+（历史对话摘要）+近期对话
     system_message = PRESALE_PROMPT + build_skill_prompt(filter_skills_by_agent(ALL_SKILLS, "presale"))
-    user_memory = state.get("user_memory", "")
-    if user_memory:
-        system_message += f"""
-        
-        ## 历史画像
-        该客户历史画像如下：
-            {user_memory}
-        请结合以上客户信息调整你的语气和回复策略"""
-
-    summary = state.get("summary", "")
-    if summary:
-        system_message += f"""
-        
-        ## 对话摘要
-        以下是此前对话的摘要：{state['summary']}"""
+    system_message += format_safe_memory(state.get("user_memory", ""))
+    system_message += format_safe_summary(state.get("summary", ""))
 
     messages = [SystemMessage(system_message), *state["messages"]]
     llm_output = llm.invoke(messages)
@@ -166,21 +148,8 @@ async def aftersale_assistant(state: GraphState):
 
     # 拼接提示词：客服角色+技能+（长期记忆）+（历史对话摘要）+近期对话
     system_message = AFTERSALE_PROMPT + build_skill_prompt(filter_skills_by_agent(ALL_SKILLS, "aftersale"))
-    user_memory = state.get("user_memory", "")
-    if user_memory:
-        system_message += f"""
-
-            ## 历史画像
-            该客户历史画像如下：
-                {user_memory}
-            请结合以上客户信息调整你的语气和回复策略"""
-
-    summary = state.get("summary", "")
-    if summary:
-        system_message += f"""
-
-            ## 对话摘要
-            以下是此前对话的摘要：{state['summary']}"""
+    system_message += format_safe_memory(state.get("user_memory", ""))
+    system_message += format_safe_summary(state.get("summary", ""))
 
     messages = [SystemMessage(system_message), *state["messages"]]
 
@@ -198,21 +167,8 @@ async def complaint_assistant(state: GraphState):
 
     # 拼接提示词：客服角色+技能+（长期记忆）+（历史对话摘要）+近期对话
     system_message = COMPLAINT_PROMPT + build_skill_prompt(filter_skills_by_agent(ALL_SKILLS, "complaint"))
-    user_memory = state.get("user_memory", "")
-    if user_memory:
-        system_message += f"""
-
-            ## 历史画像
-            该客户历史画像如下：
-                {user_memory}
-            请结合以上客户信息调整你的语气和回复策略"""
-
-    summary = state.get("summary", "")
-    if summary:
-        system_message += f"""
-
-            ## 对话摘要
-            以下是此前对话的摘要：{state['summary']}"""
+    system_message += format_safe_memory(state.get("user_memory", ""))
+    system_message += format_safe_summary(state.get("summary", ""))
 
     messages = [SystemMessage(system_message), *state["messages"]]
 
@@ -230,21 +186,8 @@ async def general_assistant(state: GraphState):
 
     # 拼接提示词：客服角色+（长期记忆）+（历史对话摘要）+近期对话
     system_message = GENERAL_PROMPT
-    user_memory = state.get("user_memory", "")
-    if user_memory:
-        system_message += f"""
-
-            ## 历史画像
-            该客户历史画像如下：
-                {user_memory}
-            请结合以上客户信息调整你的语气和回复策略"""
-
-    summary = state.get("summary", "")
-    if summary:
-        system_message += f"""
-
-            ## 对话摘要
-            以下是此前对话的摘要：{state['summary']}"""
+    system_message += format_safe_memory(state.get("user_memory", ""))
+    system_message += format_safe_summary(state.get("summary", ""))
 
     messages = [SystemMessage(system_message), *state["messages"]]
 
